@@ -6,6 +6,9 @@ plugins:
   - serverless-webpack
   - serverless-reqvalidator-plugin
   - serverless-aws-documentation
+  - serverless-plugin-canary-deployments
+  - serverless-dynamodb-local
+  - serverless-offline
 
 provider:
   name: aws
@@ -26,6 +29,11 @@ provider:
     AUTH_0_SECRET_FIELD: auth0Secret
 
   iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - codedeploy:*
+      Resource: 
+        - '*'
     - Effect: Allow
       Action:
         - dynamodb:Scan
@@ -62,11 +70,30 @@ provider:
       Resource: !Ref Auth0Secret
     - Effect: Allow
       Action:
-        - kms: Decrypt
+        - kms:Decrypt
       Resource: !GetAtt KMSKey.Arn
 
 custom:
   topicName: ImagesTopic-${self:provider.stage}
+
+  serverless-offline:
+    port: 3003
+
+  dynamodb:
+    start:
+      port: 8000
+      seed: true
+      inMemory: true
+      migrate: true
+    stages: # Add this section of the config
+      - dev
+
+    seed:
+      groups:
+        sources:
+          - table: Groups-dev
+            sources: [./seeds/groups.json]
+
   documentation:
     api:
       info:
@@ -82,6 +109,9 @@ custom:
         schema: ${file(models/create-image-request.json)}
 
 functions:
+
+  RS256Auth:
+    handler: src/lambda/auth/rs256Auth0Authorizer.handler
 
   Auth:
     handler: src/lambda/auth/auth0Authorizer.handler
@@ -101,13 +131,16 @@ functions:
           method: post
           path: groups
           cors: true
-          authorizer: Auth
+          authorizer: RS256Auth
           reqValidatorName: RequestBodyValidator
           documentation:
             summary: Create a new group
             description: Create a new group
             requestModels:
               'application/json': GroupRequest
+    deploymentSettings:
+      type: Canary10Percent30Minutes
+      alias: Live
 
   GetImages:
     handler: src/lambda/http/getImages.handler
@@ -132,7 +165,7 @@ functions:
           method: post
           path: groups/{groupId}/images
           cors: true
-          authorizer: Auth
+          authorizer: RS256Auth
           reqValidatorName: RequestBodyValidator
           documentation:
             summary: Create a new image
@@ -368,13 +401,13 @@ resources:
               Action: 'es:ESHttp*'
               Condition:
                 IpAddress:
-                  aws:SourceIp: '{USER_IP}'
+                  aws:SourceIp: '{MY_IP}'
               Resource: '*'
             - Effect: Allow
               Principal:
-                AWS: !Sub arn:aws:sts::${AWS::AccountId}:assumed-role/${self:service}-${self:provider.stage}-${self:provider.region}-lambdaRole/${self:service}-${self:provider.stage}-SyncWithElasticsearch
+                AWS: !Sub arn:aws:sts::AWS::AccountId:assumed-role/${self:service}-${self:provider.stage}-${self:provider.region}-lambdaRole/${self:service}-${self:provider.stage}-SyncWithElasticsearch
               Action: 'es:ESHttp*'
-              Resource: !Sub arn:aws:es:${self:provider.region}:${AWS::AccountId}:domain/images-search-${self:provider.stage}/*
+              Resource: !Sub arn:aws:es:${self:provider.region}:AWS::AccountId:domain/images-search-${self:provider.stage}/*
 
     KMSKey:
       Type: AWS::KMS::Key

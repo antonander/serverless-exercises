@@ -1,7 +1,8 @@
-export const apiEndpoint = 'https://gs4hngf1kh.execute-api.us-east-1.amazonaws.com/dev'
+export const apiEndpoint = 'https://zt5y1d3vc5.execute-api.us-east-1.amazonaws.com/dev'
+
 
 export const authConfig = {
   domain: 'dev-fdockgfp.us.auth0.com',
-  clientId: 'ZlWsYr5GCdqMWzDap7b2pBo0UOVXfJVW',
+  clientId: 'nM3xemaUCFpNxPb9gunWmSaT146ENs01',
   callbackUrl: 'http://localhost:3000/callback'
 }
